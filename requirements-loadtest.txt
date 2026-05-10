@@ -1,0 +1,4 @@
+# Locust dependencies for load testing
+locust>=2.15.0
+gevent>=23.0.0
+gevent-websocket>=0.10.1
