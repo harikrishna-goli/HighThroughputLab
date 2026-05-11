@@ -79,7 +79,7 @@ jobs:
           if-no-files-found: warn
 
       - name: Show service logs
-        if: failure()
+        if: always()
         run: docker compose logs
 
       - name: Stop Docker stack

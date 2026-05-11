@@ -77,6 +77,27 @@ services:
       retries: 5
 
   # FastAPI Application
+  redis:
+    image: redis:7-alpine
+    container_name: financial-redis
+    command:
+      [
+        "redis-server",
+        "--maxmemory",
+        "256mb",
+        "--maxmemory-policy",
+        "allkeys-lru",
+        "--appendonly",
+        "no"
+      ]
+    ports:
+      - "6379:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
   api:
     build:
       context: ./FinancialApp-1MRps
@@ -89,6 +110,8 @@ services:
       DB_POOL_SIZE: 25
       DB_MAX_OVERFLOW: 25
       DB_POOL_TIMEOUT: 30
+      REDIS_URL: redis://redis:6379/0
+      ACCOUNT_CACHE_TTL_SECONDS: 30
       SHARD_1: "postgresql+asyncpg://${DB_USER}:${DB_PASSWORD}@postgres-shard-1:5432/${DB_NAME}"
       SHARD_2: "postgresql+asyncpg://${DB_USER}:${DB_PASSWORD}@postgres-shard-2:5432/${DB_NAME}"
       SHARD_3: "postgresql+asyncpg://${DB_USER}:${DB_PASSWORD}@postgres-shard-3:5432/${DB_NAME}"
@@ -101,6 +124,8 @@ services:
       postgres-shard-3:
         condition: service_healthy
       postgres-shard-4:
+        condition: service_healthy
+      redis:
         condition: service_healthy
     ports:
       - "8000:8000"
