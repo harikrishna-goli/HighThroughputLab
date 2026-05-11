@@ -168,7 +168,7 @@ services:
       test:
         [
           "CMD-SHELL",
-          "wget -q -O /dev/null http://localhost/health || exit 1",
+          "wget -q -O /dev/null http://localhost/nginx-health || exit 1",
         ]
       interval: 5s
       timeout: 3s
