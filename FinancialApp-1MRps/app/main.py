@@ -23,6 +23,11 @@ def hash_pin(pin_code: str) -> str:
     return sha256(pin_code.encode("utf-8")).hexdigest()
 
 
+@app.get("/health")
+async def health() -> dict[str, str]:
+    return {"status": "ok"}
+
+
 @app.post("/read/balance", response_model=BalanceResponse)
 async def read_balance(request: BalanceRequest) -> BalanceResponse:
     requested_pin_hash = hash_pin(request.PINCode)

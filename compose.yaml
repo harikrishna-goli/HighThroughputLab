@@ -129,11 +129,13 @@ services:
       DB_USER: ${DB_USER}
       DB_PASSWORD: ${DB_PASSWORD}
       DB_NAME: ${DB_NAME}
-      DB_POOL_SIZE: 10
-      DB_MAX_OVERFLOW: 10
+      DB_POOL_SIZE: 6
+      DB_MAX_OVERFLOW: 6
       DB_POOL_TIMEOUT: 30
+      WEB_CONCURRENCY: 3
+      WORKER_CONNECTIONS: 1000
       REDIS_URL: redis://redis:6379/0
-      ACCOUNT_CACHE_TTL_SECONDS: 30
+      ACCOUNT_CACHE_TTL_SECONDS: 120
       SHARD_1: "postgresql+asyncpg://${DB_USER}:${DB_PASSWORD}@postgres-shard-1:5432/${DB_NAME}"
       SHARD_2: "postgresql+asyncpg://${DB_USER}:${DB_PASSWORD}@postgres-shard-2:5432/${DB_NAME}"
       SHARD_3: "postgresql+asyncpg://${DB_USER}:${DB_PASSWORD}@postgres-shard-3:5432/${DB_NAME}"
@@ -143,6 +145,16 @@ services:
         condition: service_completed_successfully
       redis:
         condition: service_healthy
+    healthcheck:
+      test:
+        [
+          "CMD-SHELL",
+          "python -c \"import urllib.request; urllib.request.urlopen('http://localhost:8000/health').read()\"",
+        ]
+      interval: 5s
+      timeout: 3s
+      retries: 12
+      start_period: 15s
     expose:
       - "8000"
 
@@ -151,7 +163,17 @@ services:
     container_name: financial-nginx
     depends_on:
       api:
-        condition: service_started
+        condition: service_healthy
+    healthcheck:
+      test:
+        [
+          "CMD-SHELL",
+          "wget -q -O /dev/null http://localhost/health || exit 1",
+        ]
+      interval: 5s
+      timeout: 3s
+      retries: 12
+      start_period: 5s
     ports:
       - "8000:80"
     volumes:
@@ -167,7 +189,7 @@ services:
       LOCUST_HOST: http://nginx
     depends_on:
       nginx:
-        condition: service_started
+        condition: service_healthy
     ports:
       - "8089:8089"
     volumes:
