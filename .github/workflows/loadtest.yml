@@ -43,21 +43,37 @@ jobs:
       - name: Start API stack
         run: docker compose up -d --scale api="${{ inputs.api_replicas }}" nginx
 
-      - name: Wait for API readiness
+      - name: Wait for stack stabilization
         run: |
+          # Require a healthy nginx endpoint and consecutive successful API reads
+          # so Locust does not start during worker warmup/recycle windows.
+          success_streak=0
           for i in {1..60}; do
+            if ! curl -fsS http://localhost:8000/nginx-health > /dev/null; then
+              echo "Nginx is not healthy yet... attempt $i"
+              success_streak=0
+              sleep 5
+              continue
+            fi
+
             if curl -fsS -X POST http://localhost:8000/read/balance \
               -H "Content-Type: application/json" \
               -d '{"user_unique_id":"USER-0001","PINCode":"000001"}' > /dev/null; then
-              echo "API is ready"
-              exit 0
+              success_streak=$((success_streak + 1))
+              echo "Read API healthy streak: ${success_streak}/10"
+              if [ "$success_streak" -ge 10 ]; then
+                echo "Stack is stable and ready for load test"
+                exit 0
+              fi
+            else
+              success_streak=0
+              echo "API readiness probe failed, resetting streak"
             fi
 
-            echo "Waiting for API startup and database initialization... attempt $i"
-            sleep 5
+            sleep 2
           done
 
-          echo "API did not become ready in time"
+          echo "Stack did not stabilize in time"
           docker compose logs api nginx db-init
           exit 1
 
