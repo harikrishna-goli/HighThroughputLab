@@ -76,7 +76,6 @@ services:
       timeout: 5s
       retries: 5
 
-  # FastAPI Application
   redis:
     image: redis:7-alpine
     container_name: financial-redis
@@ -98,24 +97,19 @@ services:
       timeout: 5s
       retries: 5
 
-  api:
+  db-init:
     build:
       context: ./FinancialApp-1MRps
       dockerfile: Dockerfile
-    container_name: financial-api
+    container_name: financial-db-init
+    command: ["python", "init_db.py"]
     environment:
       DB_USER: ${DB_USER}
       DB_PASSWORD: ${DB_PASSWORD}
       DB_NAME: ${DB_NAME}
-      DB_POOL_SIZE: 25
-      DB_MAX_OVERFLOW: 25
+      DB_POOL_SIZE: 5
+      DB_MAX_OVERFLOW: 5
       DB_POOL_TIMEOUT: 30
-      REDIS_URL: redis://redis:6379/0
-      ACCOUNT_CACHE_TTL_SECONDS: 30
-      SHARD_1: "postgresql+asyncpg://${DB_USER}:${DB_PASSWORD}@postgres-shard-1:5432/${DB_NAME}"
-      SHARD_2: "postgresql+asyncpg://${DB_USER}:${DB_PASSWORD}@postgres-shard-2:5432/${DB_NAME}"
-      SHARD_3: "postgresql+asyncpg://${DB_USER}:${DB_PASSWORD}@postgres-shard-3:5432/${DB_NAME}"
-      SHARD_4: "postgresql+asyncpg://${DB_USER}:${DB_PASSWORD}@postgres-shard-4:5432/${DB_NAME}"
     depends_on:
       postgres-shard-1:
         condition: service_healthy
@@ -125,10 +119,43 @@ services:
         condition: service_healthy
       postgres-shard-4:
         condition: service_healthy
+
+  # FastAPI Application
+  api:
+    build:
+      context: ./FinancialApp-1MRps
+      dockerfile: Dockerfile
+    environment:
+      DB_USER: ${DB_USER}
+      DB_PASSWORD: ${DB_PASSWORD}
+      DB_NAME: ${DB_NAME}
+      DB_POOL_SIZE: 10
+      DB_MAX_OVERFLOW: 10
+      DB_POOL_TIMEOUT: 30
+      REDIS_URL: redis://redis:6379/0
+      ACCOUNT_CACHE_TTL_SECONDS: 30
+      SHARD_1: "postgresql+asyncpg://${DB_USER}:${DB_PASSWORD}@postgres-shard-1:5432/${DB_NAME}"
+      SHARD_2: "postgresql+asyncpg://${DB_USER}:${DB_PASSWORD}@postgres-shard-2:5432/${DB_NAME}"
+      SHARD_3: "postgresql+asyncpg://${DB_USER}:${DB_PASSWORD}@postgres-shard-3:5432/${DB_NAME}"
+      SHARD_4: "postgresql+asyncpg://${DB_USER}:${DB_PASSWORD}@postgres-shard-4:5432/${DB_NAME}"
+    depends_on:
+      db-init:
+        condition: service_completed_successfully
       redis:
         condition: service_healthy
+    expose:
+      - "8000"
+
+  nginx:
+    image: nginx:1.27-alpine
+    container_name: financial-nginx
+    depends_on:
+      api:
+        condition: service_started
     ports:
-      - "8000:8000"
+      - "8000:80"
+    volumes:
+      - ./nginx.conf:/etc/nginx/nginx.conf:ro
 
   # Locust Load Testing Container
   locust:
@@ -137,9 +164,9 @@ services:
       dockerfile: Dockerfile.loadtest
     container_name: financial-loadtest
     environment:
-      LOCUST_HOST: http://api:8000
+      LOCUST_HOST: http://nginx
     depends_on:
-      api:
+      nginx:
         condition: service_started
     ports:
       - "8089:8089"

@@ -24,4 +24,4 @@ HEALTHCHECK --interval=10s --timeout=5s --start-period=5s --retries=3 \
     CMD curl -f http://localhost:8089/api/stats || exit 1
 
 # Default: Run with web UI (listening on all interfaces)
-CMD ["locust", "-f", "locustfile.py", "--host", "http://api:8000"]
+CMD ["locust", "-f", "locustfile.py", "--host", "http://nginx"]

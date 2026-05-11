@@ -15,6 +15,10 @@ on:
         description: "Test duration, for example 1m, 5m, 30s"
         required: true
         default: "1m"
+      api_replicas:
+        description: "Number of API containers behind Nginx"
+        required: true
+        default: "2"
 
 jobs:
   locust:
@@ -37,7 +41,7 @@ jobs:
         run: docker compose --profile loadtest build
 
       - name: Start API stack
-        run: docker compose up -d api
+        run: docker compose up -d --scale api="${{ inputs.api_replicas }}" nginx
 
       - name: Wait for API readiness
         run: |
@@ -54,14 +58,14 @@ jobs:
           done
 
           echo "API did not become ready in time"
-          docker compose logs api
+          docker compose logs api nginx db-init
           exit 1
 
       - name: Run Locust headless
         run: |
           docker compose --profile loadtest run --rm locust \
             locust -f locustfile.py \
-              --host http://api:8000 \
+              --host http://nginx \
               --headless \
               --users "${{ inputs.users }}" \
               --spawn-rate "${{ inputs.spawn_rate }}" \
@@ -70,6 +74,10 @@ jobs:
               --html /loadtest/results/loadtest-report.html \
               --exit-code-on-error 1
 
+      - name: Save service logs
+        if: always()
+        run: docker compose logs --no-color > results/docker-compose.log
+
       - name: Upload Locust results
         if: always()
         uses: actions/upload-artifact@v4
@@ -77,10 +85,6 @@ jobs:
           name: locust-results
           path: results/
           if-no-files-found: warn
-
-      - name: Show service logs
-        if: always()
-        run: docker compose logs
 
       - name: Stop Docker stack
         if: always()

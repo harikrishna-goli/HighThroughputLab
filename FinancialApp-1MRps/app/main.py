@@ -4,7 +4,6 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI, HTTPException, status
 from sqlalchemy import select
 
-from init_db import init_all_shards
 from schemas import BalanceRequest, BalanceResponse
 from models import Account
 from database import get_session
@@ -13,7 +12,6 @@ from cache import CachedAccount, close_cache, get_cached_account, set_cached_acc
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    await init_all_shards()
     yield
     await close_cache()
 
