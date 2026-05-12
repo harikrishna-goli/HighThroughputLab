@@ -32,5 +32,6 @@ exec docker-entrypoint.sh postgres \
   -c wal_level=replica \
   -c max_wal_senders=16 \
   -c max_replication_slots=10 \
+  -c max_connections=300 \
   -c hot_standby=on \
   -c listen_addresses=*
