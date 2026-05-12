@@ -8,13 +8,13 @@ This repository focuses on a read-heavy financial use case (`POST /read/balance`
 
 A common interview question is: _"How would you design a system for very high RPS?"_
 
-Most answers stop at architecture diagrams (gateway, sharding, horizontal scaling, cache). This project goes one step further by validating those ideas through implementation, load testing, bottleneck analysis, and iterative tuning.
+Most answers stop at architecture diagrams (gateway, horizontal scaling, cache, read replicas). This project goes one step further by validating those ideas through implementation, load testing, bottleneck analysis, and iterative tuning.
 
 ## Current scope
 
 - FastAPI service with a read-only balance endpoint
-- Sharded PostgreSQL (4 primaries), each with **two streaming read replicas**
-- **HAProxy** (`haproxy-read.cfg`) TCP load balances read traffic across primary + replicas per shard
+- PostgreSQL with one primary writer and **eight streaming read replicas**
+- **HAProxy** (`haproxy-read.cfg`) TCP load balances read traffic across replicas
 - Redis cache for account read acceleration
 - Nginx reverse proxy with upstream retry and timeout tuning
 - Uvicorn ASGI server (single process per API container; scale throughput with more `api` replicas)
@@ -26,9 +26,9 @@ Most answers stop at architecture diagrams (gateway, sharding, horizontal scalin
 ## Architecture at a glance
 
 - **API layer**: FastAPI app (`FinancialApp-1MRps/app/main.py`)
-- **Database layer**: 4 PostgreSQL shard primaries (`postgres-shard-1` … `postgres-shard-4`), each with two replicas; schema and seed data are applied on **primaries** only (`init_db.py`)
-- **Read path**: SQLAlchemy connects to `haproxy-read` (ports `15432`–`15435`), which round-robins TCP to that shard’s primary and replicas so reads are not pinned to a single backend
-- **Shard routing**: deterministic routing by `user_unique_id` range in `database.py`
+- **Database layer**: one PostgreSQL primary (`postgres-primary`) with eight streaming replicas (`postgres-replica-1` … `postgres-replica-8`); schema and seed data are applied on the primary only (`init_db.py`)
+- **Read path**: SQLAlchemy connects to `haproxy-read` on port `15432`, which round-robins TCP connections across read replicas
+- **Write path**: initialization and future writes connect directly to `postgres-primary`
 - **Cache layer**: Redis async client (`cache.py`) for hot account reads
 - **Edge/proxy layer**: Nginx (`nginx.conf`) with health endpoint and upstream failover settings
 - **Load generation**: Locust (`locustfile.py`)
@@ -121,9 +121,9 @@ This project already includes a default `.env` with required values:
 - `REDIS_URL`
 - `ACCOUNT_CACHE_TTL_SECONDS`
 
-The API uses `READ_BALANCER_HOST` / `READ_BALANCER_PORTS` and `WRITE_SHARD_HOSTS` (see `compose.yaml`); defaults match the bundled HAProxy and primary hostnames.
+The API uses `READ_DB_HOST` / `READ_DB_PORT` for replica reads and `WRITE_DB_HOST` / `WRITE_DB_PORT` for primary writes (see `compose.yaml`); defaults match the bundled HAProxy and primary hostnames.
 
-> **Existing local volumes** from before replication: run `docker compose down -v` once so primaries re-initialize with the replication user, then bring the stack up again. Otherwise replicas cannot authenticate.
+> **Existing local volumes** from before this topology change: run `docker compose down -v` once so the single primary and replicas initialize cleanly, then bring the stack up again. Otherwise old shard volumes may linger.
 
 ### 2) Start the stack
 
@@ -227,11 +227,11 @@ Configured in `nginx.conf`:
 
 ### Read load balancing (HAProxy)
 
-Configured in `haproxy-read.cfg`: one TCP listener per shard (`15432`–`15435`) with `balance roundrobin` across that shard’s primary and two replicas. Tune timeouts and balancing in that file if you change topology.
+Configured in `haproxy-read.cfg`: one TCP listener (`15432`) with `balance roundrobin` across eight read replicas. Tune timeouts and balancing in that file if you change topology.
 
 ### Database read vs write URLs
 
-`FinancialApp-1MRps/app/database.py` builds **write** engines from `WRITE_SHARD_HOSTS` (primaries) for migrations and seeding, and **read** engines from `READ_BALANCER_HOST` + `READ_BALANCER_PORTS` for application queries. Replica reads can be **milliseconds** behind the primary (async replication); this is acceptable for the current read-only balance path with Redis caching.
+`FinancialApp-1MRps/app/database.py` builds one **write** engine from `WRITE_DB_HOST` / `WRITE_DB_PORT` for migrations, seeding, and future writes, and one **read** engine from `READ_DB_HOST` / `READ_DB_PORT` for application queries. Replica reads can be **milliseconds** behind the primary (async replication); this is acceptable for the current read-only balance path with Redis caching.
 
 ## Milestones
 
@@ -257,7 +257,7 @@ Current progress includes moving from a low initial baseline to stable multi-tho
 
 - Add write APIs with idempotency and correctness checks
 - Improve backpressure, admission control, and graceful degradation
-- Deep-tune DB pools and shard balancing under mixed traffic
+- Deep-tune DB pools and replica balancing under mixed traffic
 - Extend observability (metrics, tracing, bottleneck attribution)
 - Move toward stable `16k+ RPS` in CI and larger environments
 
@@ -268,4 +268,3 @@ Issues and suggestions are welcome. If you are experienced in performance engine
 ## License
 
 No license file is currently defined in this repository.
-
