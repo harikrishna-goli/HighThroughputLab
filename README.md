@@ -16,7 +16,7 @@ Most answers stop at architecture diagrams (gateway, sharding, horizontal scalin
 - Sharded PostgreSQL backend (4 shards)
 - Redis cache for account read acceleration
 - Nginx reverse proxy with upstream retry and timeout tuning
-- Gunicorn + Uvicorn workers for process-level concurrency
+- Uvicorn ASGI server (single process per API container; scale throughput with more `api` replicas)
 - Locust load testing (headless and UI modes)
 - GitHub Actions workflow for repeatable cloud-based benchmark runs
 
@@ -185,16 +185,13 @@ This repository includes a manual workflow: `.github/workflows/loadtest.yml`.
 
 ## Performance tuning knobs
 
-### API container (Gunicorn/Uvicorn)
+### API container (Uvicorn)
 
-Configured via `compose.yaml` and `FinancialApp-1MRps/Dockerfile`:
+Configured via `compose.yaml` and `FinancialApp-1MRps/Dockerfile`. Each API container runs one Uvicorn process; horizontal scale uses `docker compose up --scale api=N` (see the load test workflow).
 
-- `WEB_CONCURRENCY`
-- `WORKER_CONNECTIONS`
-- `MAX_REQUESTS`
-- `MAX_REQUESTS_JITTER`
-- `GUNICORN_TIMEOUT`
-- `GUNICORN_KEEP_ALIVE`
+- `UVICORN_HOST` (default `0.0.0.0`)
+- `UVICORN_PORT` (default `8000`)
+- `UVICORN_TIMEOUT_KEEP_ALIVE` (HTTP keep-alive timeout in seconds; default `10`)
 
 ### Database pool
 
