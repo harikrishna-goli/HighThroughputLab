@@ -135,106 +135,6 @@ services:
       retries: 15
       start_period: 180s
 
-  postgres-replica-5:
-    image: postgres:18-alpine
-    environment:
-      POSTGRES_USER: ${DB_USER}
-      POSTGRES_PASSWORD: ${DB_PASSWORD}
-      POSTGRES_DB: ${DB_NAME}
-      PGDATA: /var/lib/postgresql/data
-      PRIMARY_HOST: postgres-primary
-      REPLICATION_PASSWORD: ${REPLICATION_PASSWORD:-replicapass456}
-    volumes:
-      - postgres_replica_5:/var/lib/postgresql/data
-      - ./docker/postgres/replica-entrypoint.sh:/replica-entrypoint.sh:ro
-    entrypoint: ["/bin/sh", "/replica-entrypoint.sh"]
-    depends_on:
-      postgres-primary:
-        condition: service_healthy
-      db-init:
-        condition: service_completed_successfully
-    healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U ${DB_USER} -d ${DB_NAME}"]
-      interval: 5s
-      timeout: 5s
-      retries: 15
-      start_period: 180s
-
-  postgres-replica-6:
-    image: postgres:18-alpine
-    environment:
-      POSTGRES_USER: ${DB_USER}
-      POSTGRES_PASSWORD: ${DB_PASSWORD}
-      POSTGRES_DB: ${DB_NAME}
-      PGDATA: /var/lib/postgresql/data
-      PRIMARY_HOST: postgres-primary
-      REPLICATION_PASSWORD: ${REPLICATION_PASSWORD:-replicapass456}
-    volumes:
-      - postgres_replica_6:/var/lib/postgresql/data
-      - ./docker/postgres/replica-entrypoint.sh:/replica-entrypoint.sh:ro
-    entrypoint: ["/bin/sh", "/replica-entrypoint.sh"]
-    depends_on:
-      postgres-primary:
-        condition: service_healthy
-      db-init:
-        condition: service_completed_successfully
-    healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U ${DB_USER} -d ${DB_NAME}"]
-      interval: 5s
-      timeout: 5s
-      retries: 15
-      start_period: 180s
-
-  postgres-replica-7:
-    image: postgres:18-alpine
-    environment:
-      POSTGRES_USER: ${DB_USER}
-      POSTGRES_PASSWORD: ${DB_PASSWORD}
-      POSTGRES_DB: ${DB_NAME}
-      PGDATA: /var/lib/postgresql/data
-      PRIMARY_HOST: postgres-primary
-      REPLICATION_PASSWORD: ${REPLICATION_PASSWORD:-replicapass456}
-    volumes:
-      - postgres_replica_7:/var/lib/postgresql/data
-      - ./docker/postgres/replica-entrypoint.sh:/replica-entrypoint.sh:ro
-    entrypoint: ["/bin/sh", "/replica-entrypoint.sh"]
-    depends_on:
-      postgres-primary:
-        condition: service_healthy
-      db-init:
-        condition: service_completed_successfully
-    healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U ${DB_USER} -d ${DB_NAME}"]
-      interval: 5s
-      timeout: 5s
-      retries: 15
-      start_period: 180s
-
-  postgres-replica-8:
-    image: postgres:18-alpine
-    environment:
-      POSTGRES_USER: ${DB_USER}
-      POSTGRES_PASSWORD: ${DB_PASSWORD}
-      POSTGRES_DB: ${DB_NAME}
-      PGDATA: /var/lib/postgresql/data
-      PRIMARY_HOST: postgres-primary
-      REPLICATION_PASSWORD: ${REPLICATION_PASSWORD:-replicapass456}
-    volumes:
-      - postgres_replica_8:/var/lib/postgresql/data
-      - ./docker/postgres/replica-entrypoint.sh:/replica-entrypoint.sh:ro
-    entrypoint: ["/bin/sh", "/replica-entrypoint.sh"]
-    depends_on:
-      postgres-primary:
-        condition: service_healthy
-      db-init:
-        condition: service_completed_successfully
-    healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U ${DB_USER} -d ${DB_NAME}"]
-      interval: 5s
-      timeout: 5s
-      retries: 15
-      start_period: 180s
-
   redis:
     image: redis:7-alpine
     container_name: financial-redis
@@ -291,14 +191,6 @@ services:
       postgres-replica-3:
         condition: service_healthy
       postgres-replica-4:
-        condition: service_healthy
-      postgres-replica-5:
-        condition: service_healthy
-      postgres-replica-6:
-        condition: service_healthy
-      postgres-replica-7:
-        condition: service_healthy
-      postgres-replica-8:
         condition: service_healthy
     healthcheck:
       test: ["CMD", "haproxy", "-c", "-f", "/usr/local/etc/haproxy/haproxy.cfg"]
@@ -383,7 +275,3 @@ volumes:
   postgres_replica_2:
   postgres_replica_3:
   postgres_replica_4:
-  postgres_replica_5:
-  postgres_replica_6:
-  postgres_replica_7:
-  postgres_replica_8:

@@ -13,7 +13,7 @@ Most answers stop at architecture diagrams (gateway, horizontal scaling, cache, 
 ## Current scope
 
 - FastAPI service with a read-only balance endpoint
-- PostgreSQL with one primary writer and **eight streaming read replicas**
+- PostgreSQL with one primary writer and **four streaming read replicas**
 - **HAProxy** (`haproxy-read.cfg`) TCP load balances read traffic across replicas
 - Redis cache for account read acceleration
 - Nginx reverse proxy with upstream retry and timeout tuning
@@ -26,7 +26,7 @@ Most answers stop at architecture diagrams (gateway, horizontal scaling, cache, 
 ## Architecture at a glance
 
 - **API layer**: FastAPI app (`FinancialApp-1MRps/app/main.py`)
-- **Database layer**: one PostgreSQL primary (`postgres-primary`) with eight streaming replicas (`postgres-replica-1` … `postgres-replica-8`); schema and seed data are applied on the primary only (`init_db.py`)
+- **Database layer**: one PostgreSQL primary (`postgres-primary`) with four streaming replicas (`postgres-replica-1` … `postgres-replica-4`); schema and seed data are applied on the primary only (`init_db.py`)
 - **Read path**: SQLAlchemy connects to `haproxy-read` on port `15432`, which round-robins TCP connections across read replicas
 - **Write path**: initialization and future writes connect directly to `postgres-primary`
 - **Cache layer**: Redis async client (`cache.py`) for hot account reads
@@ -227,7 +227,7 @@ Configured in `nginx.conf`:
 
 ### Read load balancing (HAProxy)
 
-Configured in `haproxy-read.cfg`: one TCP listener (`15432`) with `balance roundrobin` across eight read replicas. Tune timeouts and balancing in that file if you change topology.
+Configured in `haproxy-read.cfg`: one TCP listener (`15432`) with `balance roundrobin` across four read replicas. Tune timeouts and balancing in that file if you change topology.
 
 ### Database read vs write URLs
 
