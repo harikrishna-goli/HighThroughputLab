@@ -13,7 +13,8 @@ Most answers stop at architecture diagrams (gateway, sharding, horizontal scalin
 ## Current scope
 
 - FastAPI service with a read-only balance endpoint
-- Sharded PostgreSQL backend (4 shards)
+- Sharded PostgreSQL (4 primaries), each with **two streaming read replicas**
+- **HAProxy** (`haproxy-read.cfg`) TCP load balances read traffic across primary + replicas per shard
 - Redis cache for account read acceleration
 - Nginx reverse proxy with upstream retry and timeout tuning
 - Uvicorn ASGI server (single process per API container; scale throughput with more `api` replicas)
@@ -25,7 +26,8 @@ Most answers stop at architecture diagrams (gateway, sharding, horizontal scalin
 ## Architecture at a glance
 
 - **API layer**: FastAPI app (`FinancialApp-1MRps/app/main.py`)
-- **Database layer**: 4 PostgreSQL shard containers (`postgres-shard-1` ... `postgres-shard-4`)
+- **Database layer**: 4 PostgreSQL shard primaries (`postgres-shard-1` … `postgres-shard-4`), each with two replicas; schema and seed data are applied on **primaries** only (`init_db.py`)
+- **Read path**: SQLAlchemy connects to `haproxy-read` (ports `15432`–`15435`), which round-robins TCP to that shard’s primary and replicas so reads are not pinned to a single backend
 - **Shard routing**: deterministic routing by `user_unique_id` range in `database.py`
 - **Cache layer**: Redis async client (`cache.py`) for hot account reads
 - **Edge/proxy layer**: Nginx (`nginx.conf`) with health endpoint and upstream failover settings
@@ -45,8 +47,14 @@ Most answers stop at architecture diagrams (gateway, sharding, horizontal scalin
 │   │   └── init_db.py
 │   ├── Dockerfile
 │   └── requirements.txt
+├── docker/
+│   └── postgres/
+│       ├── init-replication/
+│       │   └── 01-replication.sh
+│       └── replica-entrypoint.sh
 ├── .github/workflows/loadtest.yml
 ├── compose.yaml
+├── haproxy-read.cfg
 ├── nginx.conf
 ├── locustfile.py
 ├── Dockerfile.loadtest
@@ -109,8 +117,13 @@ This project already includes a default `.env` with required values:
 - `DB_USER`
 - `DB_PASSWORD`
 - `DB_NAME`
+- `REPLICATION_PASSWORD` (must not contain `'`; defaults to `replicapass456` in Compose if unset)
 - `REDIS_URL`
 - `ACCOUNT_CACHE_TTL_SECONDS`
+
+The API uses `READ_BALANCER_HOST` / `READ_BALANCER_PORTS` and `WRITE_SHARD_HOSTS` (see `compose.yaml`); defaults match the bundled HAProxy and primary hostnames.
+
+> **Existing local volumes** from before replication: run `docker compose down -v` once so primaries re-initialize with the replication user, then bring the stack up again. Otherwise replicas cannot authenticate.
 
 ### 2) Start the stack
 
@@ -211,6 +224,14 @@ Configured in `nginx.conf`:
 - `proxy_connect_timeout`
 - `proxy_send_timeout`
 - `proxy_read_timeout`
+
+### Read load balancing (HAProxy)
+
+Configured in `haproxy-read.cfg`: one TCP listener per shard (`15432`–`15435`) with `balance roundrobin` across that shard’s primary and two replicas. Tune timeouts and balancing in that file if you change topology.
+
+### Database read vs write URLs
+
+`FinancialApp-1MRps/app/database.py` builds **write** engines from `WRITE_SHARD_HOSTS` (primaries) for migrations and seeding, and **read** engines from `READ_BALANCER_HOST` + `READ_BALANCER_PORTS` for application queries. Balance reads can be **milliseconds** behind the primary (async replication); this is acceptable for the current read-only balance path with Redis caching.
 
 ## Milestones
 

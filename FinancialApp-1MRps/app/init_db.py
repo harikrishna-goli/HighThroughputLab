@@ -2,7 +2,7 @@ from hashlib import sha256
 from decimal import Decimal
 from sqlalchemy import func, select
 from models import Base, Account
-from database import SessionLocals, engines
+from database import write_SessionLocals, write_engines
 
 def hash_pin(pin: str) -> str:
     return sha256(pin.encode("utf-8")).hexdigest()
@@ -10,7 +10,7 @@ def hash_pin(pin: str) -> str:
 async def init_all_shards():
     ranges = [(1, 2500), (2501, 5000), (5001, 7500), (7501, 10000)]
 
-    for shard_id, engine in enumerate(engines):
+    for shard_id, engine in enumerate(write_engines):
         async with engine.begin() as connection:
             await connection.run_sync(Base.metadata.create_all)
 

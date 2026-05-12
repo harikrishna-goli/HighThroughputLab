@@ -29,6 +29,7 @@ jobs:
       DB_USER: sharduser
       DB_PASSWORD: shardpass123
       DB_NAME: financial_db
+      REPLICATION_PASSWORD: replicapass456
 
     steps:
       - name: Checkout repository

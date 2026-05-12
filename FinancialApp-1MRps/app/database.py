@@ -1,4 +1,6 @@
 import os
+from urllib.parse import quote_plus
+
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 
 DB_USER = os.getenv("DB_USER", "sharduser")
@@ -8,12 +10,42 @@ DB_POOL_SIZE = int(os.getenv("DB_POOL_SIZE", "50"))
 DB_MAX_OVERFLOW = int(os.getenv("DB_MAX_OVERFLOW", "100"))
 DB_POOL_TIMEOUT = int(os.getenv("DB_POOL_TIMEOUT", "10"))
 
-SHARD_HOSTS = ["postgres-shard-1", "postgres-shard-2", "postgres-shard-3", "postgres-shard-4"]
-SHARD_PORTS = [5432, 5432, 5432, 5432]
+_SHARD_WRITE_PORT = int(os.getenv("SHARD_WRITE_PORT", "5432"))
 
-engines = [
+
+def _dsn(host: str, port: int) -> str:
+    user = quote_plus(DB_USER)
+    pw = quote_plus(DB_PASSWORD)
+    db = quote_plus(DB_NAME)
+    return f"postgresql+asyncpg://{user}:{pw}@{host}:{port}/{db}"
+
+
+def _write_hosts() -> list[str]:
+    raw = os.getenv(
+        "WRITE_SHARD_HOSTS",
+        "postgres-shard-1,postgres-shard-2,postgres-shard-3,postgres-shard-4",
+    )
+    return [h.strip() for h in raw.split(",") if h.strip()]
+
+
+def _read_targets() -> list[tuple[str, int]]:
+    host = os.getenv("READ_BALANCER_HOST", "haproxy-read")
+    ports_raw = os.getenv("READ_BALANCER_PORTS", "15432,15433,15434,15435")
+    ports = [int(p.strip()) for p in ports_raw.split(",") if p.strip()]
+    if len(ports) != 4:
+        msg = "READ_BALANCER_PORTS must list exactly four comma-separated ports"
+        raise ValueError(msg)
+    return [(host, p) for p in ports]
+
+
+WRITE_HOSTS = _write_hosts()
+if len(WRITE_HOSTS) != 4:
+    msg = "WRITE_SHARD_HOSTS must list exactly four comma-separated hostnames"
+    raise ValueError(msg)
+
+write_engines = [
     create_async_engine(
-        f"postgresql+asyncpg://{DB_USER}:{DB_PASSWORD}@{SHARD_HOSTS[i]}:{SHARD_PORTS[i]}/{DB_NAME}",
+        _dsn(WRITE_HOSTS[i], _SHARD_WRITE_PORT),
         pool_pre_ping=True,
         pool_size=DB_POOL_SIZE,
         max_overflow=DB_MAX_OVERFLOW,
@@ -23,9 +55,25 @@ engines = [
     for i in range(4)
 ]
 
+write_SessionLocals = [
+    async_sessionmaker(bind=engine, expire_on_commit=False) for engine in write_engines
+]
+
+READ_TARGETS = _read_targets()
+engines = [
+    create_async_engine(
+        _dsn(host, port),
+        pool_pre_ping=True,
+        pool_size=DB_POOL_SIZE,
+        max_overflow=DB_MAX_OVERFLOW,
+        pool_timeout=DB_POOL_TIMEOUT,
+        pool_recycle=3600,
+    )
+    for host, port in READ_TARGETS
+]
+
 SessionLocals = [
-    async_sessionmaker(bind=engine, expire_on_commit=False)
-    for engine in engines
+    async_sessionmaker(bind=engine, expire_on_commit=False) for engine in engines
 ]
 
 
@@ -49,6 +97,6 @@ def get_shard_id(user_unique_id: str) -> int:
 
 
 def get_session(user_unique_id: str) -> AsyncSession:
-    """Get database session for user's shard."""
+    """Get a read session for the user's shard (via HAProxy to primary + replicas)."""
     shard_id = get_shard_id(user_unique_id)
     return SessionLocals[shard_id]()
