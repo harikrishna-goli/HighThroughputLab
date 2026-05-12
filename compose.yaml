@@ -21,6 +21,8 @@ services:
       - hot_standby=on
       - -c
       - listen_addresses=*
+      - -c
+      - wal_keep_size=1GB
     ports:
       - "5432:5432"
     volumes:
@@ -53,6 +55,8 @@ services:
       - hot_standby=on
       - -c
       - listen_addresses=*
+      - -c
+      - wal_keep_size=1GB
     ports:
       - "5433:5432"
     volumes:
@@ -85,6 +89,8 @@ services:
       - hot_standby=on
       - -c
       - listen_addresses=*
+      - -c
+      - wal_keep_size=1GB
     ports:
       - "5434:5432"
     volumes:
@@ -117,6 +123,8 @@ services:
       - hot_standby=on
       - -c
       - listen_addresses=*
+      - -c
+      - wal_keep_size=1GB
     ports:
       - "5435:5432"
     volumes:

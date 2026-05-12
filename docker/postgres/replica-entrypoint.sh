@@ -25,4 +25,12 @@ if [ ! -s "${PGDATA}/PG_VERSION" ]; then
   unset PGPASSWORD
 fi
 
-exec docker-entrypoint.sh postgres
+# Match primary GUCs that must be >= the primary (see PostgreSQL standby docs).
+# Without this, defaults (e.g. max_wal_senders=10) abort recovery with
+# "insufficient parameter settings" vs primary max_wal_senders=16.
+exec docker-entrypoint.sh postgres \
+  -c wal_level=replica \
+  -c max_wal_senders=16 \
+  -c max_replication_slots=10 \
+  -c hot_standby=on \
+  -c listen_addresses=*
