@@ -231,7 +231,7 @@ Configured in `haproxy-read.cfg`: one TCP listener per shard (`15432`–`15435`)
 
 ### Database read vs write URLs
 
-`FinancialApp-1MRps/app/database.py` builds **write** engines from `WRITE_SHARD_HOSTS` (primaries) for migrations and seeding, and **read** engines from `READ_BALANCER_HOST` + `READ_BALANCER_PORTS` for application queries. Balance reads can be **milliseconds** behind the primary (async replication); this is acceptable for the current read-only balance path with Redis caching.
+`FinancialApp-1MRps/app/database.py` builds **write** engines from `WRITE_SHARD_HOSTS` (primaries) for migrations and seeding, and **read** engines from `READ_BALANCER_HOST` + `READ_BALANCER_PORTS` for application queries. Replica reads can be **milliseconds** behind the primary (async replication); this is acceptable for the current read-only balance path with Redis caching.
 
 ## Milestones
 
@@ -249,6 +249,7 @@ Current progress includes moving from a low initial baseline to stable multi-tho
 
 - Single endpoint focus (`/read/balance`)
 - Read-heavy benchmark profile only (write-path still pending)
+- Read replicas are eventually consistent relative to the primary; not suitable for read-after-write guarantees without routing writes to primary
 - No advanced auth/security hardening in benchmark path yet
 - CI environment constraints can influence absolute throughput numbers
 

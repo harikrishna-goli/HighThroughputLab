@@ -14,7 +14,7 @@ async def init_all_shards():
         async with engine.begin() as connection:
             await connection.run_sync(Base.metadata.create_all)
 
-        async with SessionLocals[shard_id]() as session:
+        async with write_SessionLocals[shard_id]() as session:
             result = await session.execute(select(func.count()).select_from(Account))
 
             # Check if already populated
