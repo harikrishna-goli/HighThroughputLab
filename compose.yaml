@@ -335,7 +335,7 @@ services:
       [
         "redis-server",
         "--maxmemory",
-        "1024mb",
+        "1gb",
         "--maxmemory-policy",
         "allkeys-lru",
         "--appendonly",
