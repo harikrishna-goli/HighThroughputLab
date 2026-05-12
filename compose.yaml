@@ -82,7 +82,7 @@ services:
       [
         "redis-server",
         "--maxmemory",
-        "256mb",
+        "1024mb",
         "--maxmemory-policy",
         "allkeys-lru",
         "--appendonly",
@@ -131,7 +131,7 @@ services:
       DB_POOL_SIZE: 10
       DB_MAX_OVERFLOW: 20
       DB_POOL_TIMEOUT: 30
-      WEB_CONCURRENCY: 8
+      WEB_CONCURRENCY: 2
       WORKER_CONNECTIONS: 500
       MAX_REQUESTS: 200000
       MAX_REQUESTS_JITTER: 5000
